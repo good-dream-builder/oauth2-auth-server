@@ -1,0 +1,27 @@
+#server:
+#  port: 8921
+spring:
+  application:
+    name: oauth2-auth-server
+  datasource:
+    url: jdbc:postgresql://localhost:5432/oauth
+    username: postgres
+    password: 1
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10 # HikariCP ??? ?? ?? ??
+  jpa:
+    hibernate:
+      ddl-auto: update # ???? ?????? ???? ???
+    show-sql: true # ?? ??? ??
+    properties:
+      hibernate:
+        format_sql: true # ?? ???
+logging:
+  level:
+    org.springframework.cloud: DEBUG
+    org.springframework.web: TRACE
+    org.springframework.security: TRACE
+    org.hibernate.SQL: DEBUG # Hibernate? SQL ?? ?? ??
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE # SQL ???? ??? ?? ??
+    com.acrofuture: DEBUG
