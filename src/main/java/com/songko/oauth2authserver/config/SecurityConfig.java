@@ -5,6 +5,7 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.songko.oauth2authserver.authentication.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -18,7 +19,9 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
@@ -38,7 +41,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.time.Instant;
 import java.util.UUID;
 
 @Configuration
@@ -58,26 +60,20 @@ public class SecurityConfig {
 //        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
 //                .oidc(Customizer.withDefaults());
 //
-//
-//
-//        // FIXME 인증되지 않은 상태에서 Authorization Endpoint로 접근 시 로그인 페이지로 리다이렉트
-////        http.exceptionHandling((exceptions) -> exceptions
-////                .defaultAuthenticationEntryPointFor(
-////                        new LoginUrlAuthenticationEntryPoint("/login"),
-////                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
-////                )
-////        );
+//        // 인증되지 않은 상태에서 Authorization Endpoint로 접근 시 로그인 페이지로 리다이렉트
+//        http.exceptionHandling((exceptions) -> exceptions
+//                .defaultAuthenticationEntryPointFor(
+//                        new LoginUrlAuthenticationEntryPoint("/login"),
+//                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
+//                )
+//        );
 //
 //        // OAuth2 리소스 서버 기능을 활성화하여 JWT 토큰을 통한 리소스 보호를 설정
 //        http.oauth2ResourceServer((resourceServer) -> resourceServer
 //                .jwt(Customizer.withDefaults()));
 //
-//        // CSRF 보호 비활성화
-//        http.csrf(csrf -> csrf.disable());
-//
 //        return http.build();
 //    }
-
 
     @Bean
     public OAuth2TokenGenerator<?> tokenGenerator(JwtEncoder jwtEncoder) {
@@ -98,6 +94,7 @@ public class SecurityConfig {
         };
     }
 
+    // Entry Point
     @Order(1)
     @Bean
     SecurityFilterChain authorizationServerSecurityFilterChain(
@@ -106,31 +103,25 @@ public class SecurityConfig {
             OAuth2TokenGenerator<?> tokenGenerator) throws Exception {
 
         // OAuth2AuthorizationServerConfigurer 설정
-        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
-                new OAuth2AuthorizationServerConfigurer();
+        // cf) OAuth2AuthorizationServerConfiguration.applyDefaultSecurity
+        OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = new OAuth2AuthorizationServerConfigurer();
 
-        authorizationServerConfigurer
-                .tokenEndpoint(tokenEndpoint ->
-                        tokenEndpoint
-                                .accessTokenRequestConverter(
-                                        new CustomCodeGrantAuthenticationConverter())
-                                .authenticationProvider(
-                                        new CustomCodeGrantAuthenticationProvider(
-                                                authorizationService, tokenGenerator)));
+        authorizationServerConfigurer.tokenEndpoint(tokenEndpoint -> tokenEndpoint
+                .accessTokenRequestConverter(new SongkoGrantAuthenticationConverter())
+                .authenticationProvider(new SongkoGrantAuthenticationProvider(authorizationService, tokenGenerator))
+        );
+
+        authorizationServerConfigurer.tokenEndpoint(tokenEndpoint -> tokenEndpoint
+                .accessTokenRequestConverter(new Oauth2PasswordCredentialsAuthenticationConverter())
+                .authenticationProvider(new Oauth2PasswordCredentialsAuthenticationProvider(authorizationService, tokenGenerator))
+        );
+
 
         RequestMatcher endpointsMatcher = authorizationServerConfigurer.getEndpointsMatcher();
-
-        http
-                .securityMatcher(endpointsMatcher)
-                .authorizeHttpRequests(authorize ->
-                        authorize
-                                .anyRequest().authenticated()
-                )
+        http.securityMatcher(endpointsMatcher)
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
                 .csrf(csrf -> csrf.ignoringRequestMatchers(endpointsMatcher))
                 .apply(authorizationServerConfigurer);
-
-        // 기본적인 OAuth2 보안 설정을 적용하는 코드 제거
-        // OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
 
         // JWT 기반 리소스 서버 설정
         http.oauth2ResourceServer(resourceServer -> resourceServer
@@ -147,9 +138,6 @@ public class SecurityConfig {
                         new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
                 )
         );
-
-        // CSRF 보호 비활성화
-        http.csrf(csrf -> csrf.disable());
 
         return http.build();
     }
@@ -171,7 +159,7 @@ public class SecurityConfig {
         http.formLogin(Customizer.withDefaults());
 
         // CSRF 보호 비활성화
-        http.csrf(csrf -> csrf.disable());
+//        http.csrf(csrf -> csrf.disable());
 
         return http.build();
     }
@@ -195,10 +183,10 @@ public class SecurityConfig {
     /**
      *
      * <code>
-         curl -X POST http://localhost:8080/oauth2/device_authorization \
-         -H "Content-Type: application/x-www-form-urlencoded" \
-         -H "Authorization: Basic $(echo -n 'oidc-client:secret' | base64)" \
-         -d "scope=openid profile"
+     curl -X POST http://localhost:8080/oauth2/device_authorization \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -H "Authorization: Basic $(echo -n 'oidc-client:secret' | base64)" \
+     -d "scope=openid profile"
      * </code>
      */
 
@@ -214,14 +202,14 @@ public class SecurityConfig {
         RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
                 .clientId("oidc-client")
                 .clientSecret("{noop}secret")  // 클라이언트 비밀
-//                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)  // 인증 방법 (NONE, CLIENT_SECRET_BASIC, CLIENT_SECRET_POST)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)  // 인증 방법 (NONE, CLIENT_SECRET_BASIC, CLIENT_SECRET_POST)
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-//                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-//                .clientAuthenticationMethod(ClientAuthenticationMethod.PRIVATE_KEY_JWT)
-//                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)  // 인증 코드 플로우
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)  // 인증 코드 플로우
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)  // 리프레시 토큰 플로우
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)  // 클라이언트 자격 증명 플로우
                 .authorizationGrantType(AuthorizationGrantType.PASSWORD)
+                .authorizationGrantType(CustomAuthorizationGrantType.SONGKO)
                 .redirectUri("http://127.0.0.1:3000/login/oauth2/code/oidc-client")  // 리다이렉트 URI 설정
                 .postLogoutRedirectUri("http://127.0.0.1:8080/")  // 로그아웃 후 리다이렉트 URI
                 .scope(OidcScopes.OPENID)  // OpenID 스코프 설정
@@ -307,7 +295,7 @@ public class SecurityConfig {
 
     @Bean
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
-       return new NimbusJwtEncoder(jwkSource);
+        return new NimbusJwtEncoder(jwkSource);
     }
 
 

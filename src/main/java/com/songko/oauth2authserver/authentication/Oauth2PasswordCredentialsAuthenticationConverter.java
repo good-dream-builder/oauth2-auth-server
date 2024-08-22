@@ -1,30 +1,25 @@
-package com.songko.oauth2authserver.config;
+package com.songko.oauth2authserver.authentication;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
+import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.authentication.AuthenticationConverter;
-import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.util.StringUtils;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
-@Component
-public class CustomCodeGrantAuthenticationConverter implements AuthenticationConverter {
+public class Oauth2PasswordCredentialsAuthenticationConverter implements AuthenticationConverter {
 
     @Nullable
     @Override
     public Authentication convert(HttpServletRequest request) {
         // grant_type (REQUIRED)
         String grantType = request.getParameter(OAuth2ParameterNames.GRANT_TYPE);
-        if (!"urn:ietf:params:oauth:grant-type:songko".equals(grantType)) {
+        if (!AuthorizationGrantType.PASSWORD.getValue().equals(grantType)) {
             return null;
         }
 
@@ -32,12 +27,11 @@ public class CustomCodeGrantAuthenticationConverter implements AuthenticationCon
 
         MultiValueMap<String, String> parameters = getParameters(request);
 
-        // code (REQUIRED)
-        String code = parameters.getFirst(OAuth2ParameterNames.CODE);
-//        if (!StringUtils.hasText(code) ||
-//                parameters.get(OAuth2ParameterNames.CODE).size() != 1) {
-//            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_REQUEST);
-//        }
+        // "scope" 파라미터 값을 가져옴
+        String scopeParam = parameters.getFirst(OAuth2ParameterNames.SCOPE);
+
+        // 공백을 기준으로 스코프를 분리하여 Set으로 변환
+        Set<String> scopes = new HashSet<>(Arrays.asList(scopeParam.split(" ")));
 
         Map<String, Object> additionalParameters = new HashMap<>();
         parameters.forEach((key, value) -> {
@@ -51,7 +45,7 @@ public class CustomCodeGrantAuthenticationConverter implements AuthenticationCon
             }
         });
 
-        return new CustomCodeGrantAuthenticationToken(code, clientPrincipal, additionalParameters);
+        return new Oauth2PasswordCredentialsAuthenticationToken(clientPrincipal, scopes, additionalParameters);
     }
 
     private static MultiValueMap<String, String> getParameters(HttpServletRequest request) {

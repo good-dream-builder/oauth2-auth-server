@@ -1,15 +1,9 @@
-package com.songko.oauth2authserver.config;
+package com.songko.oauth2authserver.authentication;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.oauth2.core.ClaimAccessor;
-import org.springframework.security.oauth2.core.OAuth2AccessToken;
-import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
-import org.springframework.security.oauth2.core.OAuth2Token;
+import org.springframework.security.oauth2.core.*;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
@@ -20,16 +14,14 @@ import org.springframework.security.oauth2.server.authorization.context.Authoriz
 import org.springframework.security.oauth2.server.authorization.token.DefaultOAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
-import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 
-@Component
-public class CustomCodeGrantAuthenticationProvider implements AuthenticationProvider {
+public class SongkoGrantAuthenticationProvider implements AuthenticationProvider {
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
 
-    public CustomCodeGrantAuthenticationProvider(OAuth2AuthorizationService authorizationService,
-                                                 OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
+    public SongkoGrantAuthenticationProvider(OAuth2AuthorizationService authorizationService,
+                                             OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
         Assert.notNull(authorizationService, "authorizationService cannot be null");
         Assert.notNull(tokenGenerator, "tokenGenerator cannot be null");
         this.authorizationService = authorizationService;
@@ -38,8 +30,8 @@ public class CustomCodeGrantAuthenticationProvider implements AuthenticationProv
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
-        CustomCodeGrantAuthenticationToken customCodeGrantAuthentication =
-                (CustomCodeGrantAuthenticationToken) authentication;
+        SongkoGrantAuthenticationToken customCodeGrantAuthentication =
+                (SongkoGrantAuthenticationToken) authentication;
 
         // Ensure the client is authenticated
         OAuth2ClientAuthenticationToken clientPrincipal =
@@ -96,7 +88,7 @@ public class CustomCodeGrantAuthenticationProvider implements AuthenticationProv
 
     @Override
     public boolean supports(Class<?> authentication) {
-        return CustomCodeGrantAuthenticationToken.class.isAssignableFrom(authentication);
+        return SongkoGrantAuthenticationToken.class.isAssignableFrom(authentication);
     }
 
     private static OAuth2ClientAuthenticationToken getAuthenticatedClientElseThrowInvalidClient(Authentication authentication) {
