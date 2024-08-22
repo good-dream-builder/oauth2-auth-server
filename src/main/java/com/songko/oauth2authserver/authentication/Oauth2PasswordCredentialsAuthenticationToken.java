@@ -3,6 +3,7 @@ package com.songko.oauth2authserver.authentication;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
 
 import java.util.*;
@@ -22,6 +23,17 @@ public class Oauth2PasswordCredentialsAuthenticationToken extends OAuth2Authoriz
         this.principal = principal;
         this.scopes = Collections.unmodifiableSet((scopes != null) ? new HashSet<>(scopes) : Collections.emptySet());
         this.additionalParameters = Collections.unmodifiableMap((additionalParameters != null) ? new HashMap<>(additionalParameters) : Collections.emptyMap());
+
+        this.username = String.valueOf(this.additionalParameters.get(OAuth2ParameterNames.USERNAME));
+        this.password = String.valueOf(this.additionalParameters.get(OAuth2ParameterNames.PASSWORD));
+    }
+
+    public String getUsername() {
+        return this.username;
+    }
+
+    public String getPassword() {
+        return this.password;
     }
 
     @Override
@@ -32,6 +44,7 @@ public class Oauth2PasswordCredentialsAuthenticationToken extends OAuth2Authoriz
     public Map<String, Object> getAdditionalParameters() {
         return additionalParameters;
     }
+
 
     public Set<String> getScopes() {
         return this.scopes;
